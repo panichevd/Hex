@@ -1,7 +1,96 @@
 #include "Hex.h"
 
-Hex::Hex(unsigned int size) : m_Size(size), m_HexBoard(size*size + 4)
+IPlayer::IPlayer(PlayerColor playerColor) : m_PlayerColor(playerColor)
 {
+}
+
+IPlayer::~IPlayer()
+{
+}
+
+HumanPlayer::HumanPlayer(PlayerColor playerColor) : IPlayer(playerColor)
+{
+}
+
+HumanPlayer::~HumanPlayer()
+{
+}
+
+bool HumanPlayer::GetVertexNumber(const string &turn, coordinates &result) const
+{
+	int pos;
+	string numberPart, alphaPart;
+
+	for (pos = 0; pos < turn.size() && isdigit(turn[pos]); ++pos)
+		numberPart += turn[pos];
+
+	if (pos == 0 || pos == turn.size())
+		return false;
+
+	alphaPart = turn.substr(pos);
+
+	result.first = stoul(numberPart) - 1;
+	result.second = alphaPart[0] - 'A';  //  Consider Z is a max value for alphabetic part
+
+	return true;
+}
+
+bool HumanPlayer::TryTurn(Hex& hexBoard)
+{
+	string turn;
+	coordinates coord;
+
+	cout << "Input your turn: ";
+	cin >> turn;
+	cout << "\n";
+	if (!GetVertexNumber(turn, coord) || coord.first > hexBoard.m_Size || coord.second > hexBoard.m_Size)
+	{
+		cout << "\nNo such hex on the board! Try again.\n\n";
+		return false;
+	}
+
+	if (hexBoard.GetVertexColor(coord) != NONE)
+	{
+		cout << "\nThis hex is already occupied. Try again.\n\n";
+		return false;
+	}
+
+	hexBoard.SetVertexColor(coord, m_PlayerColor);
+	hexBoard.SetEdgesColors(coord);
+	return true;
+}
+
+RandomStratedyPlayer::RandomStratedyPlayer(PlayerColor playerColor) : IPlayer(playerColor)
+{
+}
+
+RandomStratedyPlayer::~RandomStratedyPlayer()
+{
+}
+
+bool RandomStratedyPlayer::TryTurn(Hex &hexBoard)
+{
+	coordinates coord;
+
+	coord.first = rand() % hexBoard.m_Size;
+	coord.second = rand() % hexBoard.m_Size;
+	if (hexBoard.GetVertexColor(coord) != NONE)
+		return false;
+
+	hexBoard.SetVertexColor(coord, m_PlayerColor);
+	hexBoard.SetEdgesColors(coord);
+	cout << "\nComputer turn is: " << coord.first + 1 << static_cast<char>('A' + coord.second) << "\n\n";
+	return true;
+}
+
+Hex::Hex(unsigned int size) : m_Size(size), m_HexBoard(size*size + 4),
+	m_Left(size*size), m_Right(size*size + 1), m_Top(size*size + 2), m_Bottom(size*size + 3)
+{
+	srand(time(NULL));
+
+	m_Player1 = new HumanPlayer(RED);
+	m_Player2 = new RandomStratedyPlayer(BLUE);
+	m_NextPlayer = 1;
 	//  line 1 
 	m_HexBoard.AddEdge(0, 1);
 	m_HexBoard.AddEdge(0, size);
@@ -59,37 +148,39 @@ Hex::Hex(unsigned int size) : m_Size(size), m_HexBoard(size*size + 4)
 	m_HexBoard.AddEdge((size - 1)*size + size - 1, (size - 2)*size + size - 1);
 
 	//  Virtual vertices
-	m_HexBoard.SetVertexColor(size*size, BLUE);
+	m_HexBoard.SetVertexColor(m_Left, BLUE);
 	for (unsigned int i = 0; i < size; ++i)
 	{
-		m_HexBoard.AddEdge(size*size, i*size, BLUE);
-		m_HexBoard.AddEdge(i*size, size*size, BLUE);
+		m_HexBoard.AddEdge(m_Left, i*size, NONE);
+		m_HexBoard.AddEdge(i*size, m_Left, NONE);
 	}
 
-	m_HexBoard.SetVertexColor(size*size + 1, BLUE);
+	m_HexBoard.SetVertexColor(m_Right, BLUE);
 	for (unsigned int i = 0; i < size; ++i)
 	{
-		m_HexBoard.AddEdge(size*size + 1, i*size + size - 1, BLUE);
-		m_HexBoard.AddEdge(i*size + size - 1, size*size + 1, BLUE);
+		m_HexBoard.AddEdge(m_Right, i*size + size - 1, NONE);
+		m_HexBoard.AddEdge(i*size + size - 1, m_Right, NONE);
 	}
 
-	m_HexBoard.SetVertexColor(size*size + 2, RED);
+	m_HexBoard.SetVertexColor(m_Top, RED);
 	for (unsigned int i = 0; i < size; ++i)
 	{
-		m_HexBoard.AddEdge(size*size + 2, i, RED);
-		m_HexBoard.AddEdge(i, size*size + 2, RED);
+		m_HexBoard.AddEdge(m_Top, i, NONE);
+		m_HexBoard.AddEdge(i, m_Top, NONE);
 	}
 
-	m_HexBoard.SetVertexColor(size*size + 3, RED);
+	m_HexBoard.SetVertexColor(m_Bottom, RED);
 	for (unsigned int i = 0; i < size; ++i)
 	{
-		m_HexBoard.AddEdge(size*size + 3, (size - 1)*size + i, RED);
-		m_HexBoard.AddEdge((size - 1)*size + i, size*size + 3, RED);
+		m_HexBoard.AddEdge(m_Bottom, (size - 1)*size + i, NONE);
+		m_HexBoard.AddEdge((size - 1)*size + i, m_Bottom, NONE);
 	}
 }
 
 Hex::~Hex()
 {
+	delete m_Player1;
+	delete m_Player2;
 }
 
 bool Hex::GetVertexNumber(const string &turn, unsigned int &result) const
@@ -111,53 +202,78 @@ bool Hex::GetVertexNumber(const string &turn, unsigned int &result) const
 	return true;
 }
 
-void Hex::SetEdgesColors(unsigned int hexNumber)
+void Hex::SetEdgesColors(const coordinates &coord)
 {
-	const list<Edge> &edges = m_HexBoard.GetNodeEdges(hexNumber);
+	unsigned int vertexIndex = coord.first * m_Size + coord.second;
+
+	const list<Edge> &edges = m_HexBoard.GetNodeEdges(vertexIndex);
 	for (auto it = edges.begin(); it != edges.end(); ++it)
 	{
 		unsigned int endHexNumber = it->GetEndVertexNumber();
-		if (m_HexBoard.GetVertexColor(endHexNumber) == m_HexBoard.GetVertexColor(hexNumber))
+		if (m_HexBoard.GetVertexColor(endHexNumber) == m_HexBoard.GetVertexColor(vertexIndex))
 		{
-			m_HexBoard.SetEdgeColor(hexNumber, endHexNumber, m_HexBoard.GetVertexColor(hexNumber));
-			m_HexBoard.SetEdgeColor(endHexNumber, hexNumber, m_HexBoard.GetVertexColor(hexNumber));
+			m_HexBoard.SetEdgeColor(vertexIndex, endHexNumber, m_HexBoard.GetVertexColor(vertexIndex));
+			m_HexBoard.SetEdgeColor(endHexNumber, vertexIndex, m_HexBoard.GetVertexColor(vertexIndex));
 		}
 	}
 }
 
-bool Hex::MakeTurn(const string &turn, PlayerColor playerColor)
+bool Hex::SetVertexColor(const coordinates &coord, PlayerColor playerColor)
 {
-	unsigned int vertexNum;
-	if (!GetVertexNumber(turn, vertexNum))
-	{
-		cout << "No such hex on the board! Try again.\n";
-		return false;
-	}
+	unsigned int vertexIndex = coord.first * m_Size + coord.second;
+	return m_HexBoard.SetVertexColor(vertexIndex, playerColor);
+}
 
-	if (m_HexBoard.GetVertexColor(vertexNum) != NONE)
-	{
-		cout << "This hex is already occupied. Try again.\n";
-		return false;
-	}
-
-	m_HexBoard.SetVertexColor(vertexNum, playerColor);
-	SetEdgesColors(vertexNum);
-	return true;
+PlayerColor Hex::GetVertexColor(const coordinates &coord) const
+{
+	unsigned int vertexIndex = coord.first * m_Size + coord.second;
+	return m_HexBoard.GetVertexColor(vertexIndex);
 }
 
 PlayerColor Hex::GetWinner()
 {
 	//  BLUE wins if two his virtual vertices are connected (left and right)
-	auto blueVertices = m_HexBoard.GetConnections(m_Size*m_Size);
-	if (find(blueVertices.begin(), blueVertices.end(), m_Size*m_Size + 1) != blueVertices.end())
+	auto blueVertices = m_HexBoard.GetConnections(m_Left);
+	if (find(blueVertices.begin(), blueVertices.end(), m_Right) != blueVertices.end())
 		return BLUE;
 
 	//  RED wins if two his virtual vertices are connected (upper and lower)
-	auto redVertices = m_HexBoard.GetConnections(m_Size*m_Size + 2);
-	if (find(redVertices.begin(), redVertices.end(), m_Size*m_Size + 3) != redVertices.end())
+	auto redVertices = m_HexBoard.GetConnections(m_Top);
+	if (find(redVertices.begin(), redVertices.end(), m_Bottom) != redVertices.end())
 		return RED;
 
 	return NONE;
+}
+
+PlayerColor Hex::MakeTurn()
+{
+	IPlayer *currentPlayer;
+
+	if (m_NextPlayer == 1)
+		currentPlayer = m_Player1;
+	else
+		currentPlayer = m_Player2;
+
+	while (!currentPlayer->TryTurn(*this))
+		cout << *this;
+
+	m_NextPlayer = !m_NextPlayer;  //  easy way to change player
+
+	return GetWinner();
+}
+
+PlayerColor Hex::Play()
+{
+	PlayerColor winner;
+	do
+	{
+		cout << *this;
+		winner = MakeTurn();
+	} while (winner == NONE);
+
+	cout << *this;
+
+	return winner;
 }
 
 //  doesn't support field size > alphabet letters amount
@@ -203,7 +319,7 @@ ostream &operator<<(ostream &os, const Hex &hexGame)
 		os << " ";
 	for (unsigned int i = 0; i < hexGame.m_Size; ++i)
 		os << " " << hexGame.GetXCoord(i);
-	os << endl;
+	os << endl << endl;
 
 	return os;
 }

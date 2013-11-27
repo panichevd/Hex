@@ -269,18 +269,11 @@ bool Graph::Adjacent(unsigned int v1, unsigned int v2) const
 //  Get the list of edges that start in the given node
 const list<Edge> &Graph::GetNodeEdges(unsigned int v) const
 {
-	//  We will assign it to a const list<>& so the temporary object will continue living
-	if (v > GetVerticesAmount() + 1)
-		return list<Edge>(0);
-
 	return m_Vertices[v].GetNodeEdges();
 }
 
 list<Edge> &Graph::GetNodeEdges(unsigned int v)
 {
-	if (v > GetVerticesAmount() + 1)
-		return list<Edge>(0);
-
 	return m_Vertices[v].GetNodeEdges();
 }
 

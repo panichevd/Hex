@@ -2,16 +2,18 @@
 
 int main()
 {
-	Hex hex(3);
+	Hex hex(5);
 
-	hex.MakeTurn("1A", RED);
-	hex.MakeTurn("2A", RED);
-	hex.MakeTurn("2B", RED);
-	hex.MakeTurn("2C", RED);
-	hex.MakeTurn("3C", RED);
 
-	cout << hex;
+	PlayerColor winner = hex.Play();
 
-	auto a = hex.GetWinner();
+
+	if (winner == RED)
+		cout << "RED won\n";
+	else
+		cout << "BLUE won\n";
+
+	cin.get();
+	cin.get();
 	return 0;
 }
