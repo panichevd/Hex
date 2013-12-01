@@ -17,6 +17,10 @@ Vertex::Vertex(unsigned int vertexNumber) : m_vertexNumber(vertexNumber), m_play
 {
 }
 
+Vertex::Vertex(Vertex &&vertex) : m_vertexNumber(vertex.m_vertexNumber), m_edgeList(move(vertex.m_vertexNumber)), m_playerColor(vertex.m_playerColor)
+{
+}
+
 Vertex::~Vertex()
 {
 }
@@ -126,6 +130,10 @@ Edge::Edge(unsigned int startVertex, unsigned int endVertex, PlayerColor playerC
 
 }
 
+Edge::Edge(Edge && edge) : m_startVertex(edge.m_startVertex), m_endVertex(edge.m_endVertex), m_Weight(edge.m_Weight), m_playerColor(edge.m_playerColor)
+{
+}
+
 Edge::~Edge()
 {
 }
@@ -199,7 +207,6 @@ Graph::Graph(unsigned int size, double density, double distance_min, double dist
 	}
 }
 
-
 Graph::Graph(const string &filename) : m_EdgesAmount(0)
 {
 	ifstream fin(filename, ios_base::in);
@@ -226,6 +233,10 @@ Graph::Graph(const string &filename) : m_EdgesAmount(0)
 		}
 	}
 	fin.close();
+}
+
+Graph::Graph(Graph &&graph) : m_EdgesAmount(graph.m_EdgesAmount), m_Vertices(move(graph.m_Vertices))
+{
 }
 
 Graph::~Graph()

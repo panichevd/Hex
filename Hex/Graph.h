@@ -12,6 +12,7 @@
 #include <string>
 #include <fstream>
 
+using std::move;
 using std::vector;
 using std::list;
 using std::pair;
@@ -34,6 +35,7 @@ private:
 public:
 	Vertex();
 	Vertex(unsigned int vertexNumber);
+	Vertex(Vertex &&vertex);
 	~Vertex();
 
 	bool Adjacent(unsigned int v2) const;
@@ -66,6 +68,7 @@ public:
 	Edge();
 	Edge(unsigned int startVertex, unsigned int endVertex, double weight, PlayerColor playerColor = NONE);
 	Edge(unsigned int startVertex, unsigned int endVertex, PlayerColor playerColor = NONE);
+	Edge(Edge && edge);
 	~Edge();
 
 	//  Getters
@@ -97,6 +100,8 @@ public:
 	Graph(unsigned int size, double density, double distance_min, double distance_max);
 	//  Read graph from a file
 	Graph(const string &filename);
+	//  Move graph
+	Graph(Graph &&graph);
 	//  The destructor
 	~Graph();
 

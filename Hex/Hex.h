@@ -12,6 +12,7 @@ using std::endl;
 using std::stoul;
 
 typedef pair<unsigned int, unsigned int> coordinates;
+typedef pair<coordinates, int> turn;
 class Hex;
 
 //  I for Interface
@@ -22,6 +23,8 @@ protected:
 public:
 	IPlayer(PlayerColor playerColor);
 	virtual ~IPlayer();
+
+	PlayerColor GetColor() const;
 
 	virtual bool TryTurn(Hex& hexBoard) = 0;
 };
@@ -37,13 +40,49 @@ public:
 	bool TryTurn(Hex& hexBoard);
 };
 
-class RandomStratedyPlayer : public IPlayer
+class RandomStrategyPlayer : public IPlayer
 {
 public:
-	RandomStratedyPlayer(PlayerColor playerColor);
-	virtual ~RandomStratedyPlayer();
+	RandomStrategyPlayer(PlayerColor playerColor);
+	virtual ~RandomStrategyPlayer();
 	
 	bool TryTurn(Hex &hexBoard);
+};
+
+class IMinMaxPlayer : public IPlayer
+{
+protected:
+	virtual int Evaluate(Hex &hexBoard);
+	void GetPossibleFields(const Hex &hexBoard, vector<Hex> &boards, vector<coordinates> &coords);
+public:
+	IMinMaxPlayer(PlayerColor playerColor);
+	virtual ~IMinMaxPlayer();
+
+	virtual bool TryTurn(Hex& hexBoard) = 0;
+};
+
+class MinMaxPlayer : public IMinMaxPlayer
+{
+private:
+	turn Min(Hex &hexBoard, const coordinates& coord, unsigned int level);
+	turn Max(Hex &hexBoard, const coordinates& coord, unsigned int level);
+public:
+	MinMaxPlayer(PlayerColor playerColor);
+	virtual ~MinMaxPlayer();
+
+	bool TryTurn(Hex& hexBoard);
+};
+
+class AlphaBetaPlayer : public IMinMaxPlayer
+{
+private:
+	turn Min(Hex &hexBoard, const coordinates& coord, int alpha, int beta, unsigned int level);
+	turn Max(Hex &hexBoard, const coordinates& coord, int alpha, int beta, unsigned int level);
+public:
+	AlphaBetaPlayer(PlayerColor playerColor);
+	virtual ~AlphaBetaPlayer();
+
+	bool TryTurn(Hex& hexBoard);
 };
 
 //  Implements the game of hex. The board is represented as a graph that has size*size vertices(hexagons)
@@ -58,6 +97,7 @@ private:
 	const int m_Left, m_Right, m_Top, m_Bottom;
 	Graph m_HexBoard;
 	unsigned int m_Size;
+	unsigned int m_Empty;
 
 	IPlayer *m_Player1, *m_Player2;
 	int m_NextPlayer;
@@ -79,14 +119,20 @@ private:
 public:
 	//  Construct a hex board of given size
 	explicit Hex(unsigned int size);
+	Hex(const Hex& hex);
+	Hex(Hex &&hex);
 	~Hex();
 
 	PlayerColor Play();
 
 	//  Outputs the hex board
 	friend ostream &operator<< (ostream &os, const Hex &hexGame);
+
 	friend HumanPlayer;
-	friend RandomStratedyPlayer;
+	friend RandomStrategyPlayer;
+	friend IMinMaxPlayer;
+	friend MinMaxPlayer;
+	friend AlphaBetaPlayer;
 };
 
 #endif
