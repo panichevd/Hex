@@ -2,7 +2,7 @@
 
 int main()
 {
-	Hex hex(3);
+	Hex hex(11);
 
 
 	PlayerColor winner = hex.Play();

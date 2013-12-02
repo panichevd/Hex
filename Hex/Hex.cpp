@@ -84,29 +84,39 @@ bool RandomStrategyPlayer::TryTurn(Hex &hexBoard)
 
 	hexBoard.SetVertexColor(coord, m_PlayerColor);
 	hexBoard.SetEdgesColors(coord);
-	cout << "\nComputer turn is: " << coord.first + 1 << static_cast<char>('A' + coord.second) << "\n\n";
+
 	return true;
 }
 
-IMinMaxPlayer::IMinMaxPlayer(PlayerColor playerColor) : IPlayer(playerColor)
+IPredictingPlayer::IPredictingPlayer(PlayerColor playerColor) : IPlayer(playerColor)
 {
 }
 
-IMinMaxPlayer::~IMinMaxPlayer()
+IPredictingPlayer::~IPredictingPlayer()
 {
 }
 
-int IMinMaxPlayer::Evaluate(Hex &hexBoard)
+PlayerColor IPredictingPlayer::InverseColor()
+{
+	if (m_PlayerColor == RED)
+		return BLUE;
+	else if (m_PlayerColor == BLUE)
+		return RED;
+	else
+		return NONE;
+}
+
+int IPredictingPlayer::Evaluate(Hex &hexBoard)
 {
 	if (hexBoard.GetWinner() == m_PlayerColor)
 		return 5;
-	else if (hexBoard.GetWinner() == m_PlayerColor)
+	else if (hexBoard.GetWinner() == InverseColor())
 		return -5;
 	else
 		return 0;
 }
 
-void IMinMaxPlayer::GetPossibleFields(const Hex &hexBoard, vector<Hex> &boards, vector<coordinates> &coords)
+void IPredictingPlayer::GetPossibleFields(const Hex &hexBoard, vector<Hex> &boards, vector<coordinates> &coords)
 {
 	coordinates coord;
 
@@ -117,15 +127,17 @@ void IMinMaxPlayer::GetPossibleFields(const Hex &hexBoard, vector<Hex> &boards, 
 
 			if (hexBoardCopy.GetVertexColor(coord) == NONE)
 			{
-				hexBoardCopy.SetVertexColor(coord, m_PlayerColor);
+				hexBoardCopy.SetVertexColor(coord, hexBoard.GetNextPlayerColor());
 				hexBoardCopy.SetEdgesColors(coord);
+				hexBoardCopy.m_NextPlayer = !hexBoardCopy.m_NextPlayer;
+
 				boards.push_back(move(hexBoardCopy));
 				coords.push_back(coord);
 			}
 		}
 }
 
-MinMaxPlayer::MinMaxPlayer(PlayerColor playerColor) : IMinMaxPlayer(playerColor)
+MinMaxPlayer::MinMaxPlayer(PlayerColor playerColor) : IPredictingPlayer(playerColor)
 {
 }
 
@@ -138,7 +150,7 @@ turn MinMaxPlayer::Min(Hex &hexBoard, const coordinates& coord, unsigned int lev
 	//  The minimum initial value for level is 1 (because if the board is full there is no intenion to try to make a move)
 	turn res, t;
 
-	if (level == 0)
+	if (level == 0 || hexBoard.GetWinner() != NONE)
 	{
 		res.first = coord;
 		res.second = Evaluate(hexBoard);
@@ -171,7 +183,7 @@ turn MinMaxPlayer::Max(Hex &hexBoard, const coordinates& coord, unsigned int lev
 	//  The minimum initial value for level is 1 (because if the board is full there is no intenion to try to make a move)
 	turn res, t;
 
-	if (level == 0)
+	if (level == 0 || hexBoard.GetWinner() != NONE)
 	{
 		res.first = coord;
 		res.second = Evaluate(hexBoard);
@@ -207,7 +219,7 @@ bool MinMaxPlayer::TryTurn(Hex& hexBoard)
 	return true;
 }
 
-AlphaBetaPlayer::AlphaBetaPlayer(PlayerColor playerColor) : IMinMaxPlayer(playerColor)
+AlphaBetaPlayer::AlphaBetaPlayer(PlayerColor playerColor) : IPredictingPlayer(playerColor)
 {
 }
 
@@ -220,7 +232,7 @@ turn AlphaBetaPlayer::Min(Hex &hexBoard, const coordinates& coord, int alpha, in
 	//  The minimum initial value for level is 1 (because if the board is full there is no intenion to try to make a move)
 	turn res, t;
 
-	if (level == 0)
+	if (level == 0 || hexBoard.GetWinner() != NONE)
 	{
 		res.first = coord;
 		res.second = Evaluate(hexBoard);
@@ -255,7 +267,7 @@ turn AlphaBetaPlayer::Max(Hex &hexBoard, const coordinates& coord, int alpha, in
 	//  The minimum initial value for level is 1 (because if the board is full there is no intenion to try to make a move)
 	turn res, t;
 
-	if (level == 0)
+	if (level == 0 || hexBoard.GetWinner() != NONE)
 	{
 		res.first = coord;
 		res.second = Evaluate(hexBoard);
@@ -293,13 +305,164 @@ bool AlphaBetaPlayer::TryTurn(Hex& hexBoard)
 	return true;
 }
 
+MonteCarloAlphaBetaPlayer::MonteCarloAlphaBetaPlayer(PlayerColor playerColor) : IPredictingPlayer(playerColor), m_InitialLevel(0), m_Simulations(500)
+{
+}
+
+MonteCarloAlphaBetaPlayer::~MonteCarloAlphaBetaPlayer()
+{
+}
+
+int MonteCarloAlphaBetaPlayer::Evaluate(Hex &hexBoard)
+{
+	int eval_val = 0;
+
+	for (int i = 0; i < m_Simulations; ++i)
+	{
+		Hex hexCopy = hexBoard;
+		PlayerColor winner = hexCopy.RandomSimulation();
+		if (winner == m_PlayerColor)
+			eval_val++;
+		else
+			eval_val--;
+	}
+	return eval_val;
+}
+
+turn MonteCarloAlphaBetaPlayer::Min(Hex &hexBoard, const coordinates& coord, int alpha, int beta, unsigned int level)
+{
+	//  The minimum initial value for level is 1 (because if the board is full there is no intenion to try to make a move)
+	turn res, t;
+
+	if (level == 0 || level <= m_InitialLevel - 2 || hexBoard.GetWinner() != NONE)
+	{
+		res.first = coord;
+		res.second = Evaluate(hexBoard);
+	}
+	else
+	{
+		vector<Hex> boards;
+		vector<coordinates> coords;
+
+		GetPossibleFields(hexBoard, boards, coords);
+		res.first = coord;
+		res.second = beta;
+		auto coordsIt = coords.begin();
+		for (auto boardsIt = boards.begin(); boardsIt != boards.end(); ++boardsIt, ++coordsIt)
+		{
+			t = Max(*boardsIt, *coordsIt, alpha, res.second, level - 1);
+			if (t.second < res.second)
+			{
+				res.first = *coordsIt;
+				res.second = t.second;
+			}
+			if (res.second <= alpha)
+				return res;
+		}
+	}
+
+	return res;
+}
+
+turn MonteCarloAlphaBetaPlayer::Max(Hex &hexBoard, const coordinates& coord, int alpha, int beta, unsigned int level)
+{
+	//  The minimum initial value for level is 1 (because if the board is full there is no intenion to try to make a move)
+	turn res, t;
+
+	if (level == 0 || level <= m_InitialLevel - 2 || hexBoard.GetWinner() != NONE)
+	{
+		res.first = coord;
+		res.second = Evaluate(hexBoard);
+	}
+	else 
+	{
+		vector<Hex> boards;
+		vector<coordinates> coords;
+
+		GetPossibleFields(hexBoard, boards, coords);
+		res.first = coord;
+		res.second = alpha;
+		auto coordsIt = coords.begin();
+		for (auto boardsIt = boards.begin(); boardsIt != boards.end(); ++boardsIt, ++coordsIt)
+		{
+			t = Min(*boardsIt, *coordsIt, res.second, beta, level - 1);
+			if (t.second > res.second)
+			{
+				res.first = *coordsIt;
+				res.second = t.second;
+			}
+			if (res.second >= beta)
+				return res;
+		}
+	}
+	return res;
+}
+
+bool MonteCarloAlphaBetaPlayer::TryTurn(Hex& hexBoard)
+{
+	m_InitialLevel = hexBoard.m_Empty;
+	turn madeTurn = Max(hexBoard, coordinates(0, 0), INT_MIN, INT_MAX, hexBoard.m_Empty);
+
+	hexBoard.SetVertexColor(madeTurn.first, m_PlayerColor);
+	hexBoard.SetEdgesColors(madeTurn.first);
+	return true;
+}
+
+MonteCarloPlayer::MonteCarloPlayer(PlayerColor playerColor) : IPredictingPlayer(playerColor), m_Simulations(500)
+{
+}
+
+MonteCarloPlayer::~MonteCarloPlayer()
+{
+}
+
+int MonteCarloPlayer::Evaluate(Hex &hexBoard)
+{
+	int eval_val = 0;
+
+	for (int i = 0; i < m_Simulations; ++i)
+	{
+		Hex hexCopy = hexBoard;
+		PlayerColor winner = hexCopy.RandomSimulation();
+		if (winner == m_PlayerColor)
+			eval_val++;
+		else
+			eval_val--;
+	}
+	return eval_val;
+}
+
+bool MonteCarloPlayer::TryTurn(Hex& hexBoard)
+{
+	vector<Hex> boards;
+	vector<coordinates> coords;
+	turn madeTurn = turn(coordinates(0, 0), INT_MIN);
+	int val;
+
+	GetPossibleFields(hexBoard, boards, coords);
+	auto coordsIt = coords.begin();
+	for (auto boardsIt = boards.begin(); boardsIt != boards.end(); ++boardsIt, ++coordsIt)
+	{
+		val = Evaluate(*boardsIt);
+		if (val > madeTurn.second)
+		{
+			madeTurn.first = *coordsIt;
+			madeTurn.second = val;
+		}
+	}
+
+	hexBoard.SetVertexColor(madeTurn.first, m_PlayerColor);
+	hexBoard.SetEdgesColors(madeTurn.first);
+	return true;
+}
+
 Hex::Hex(unsigned int size) : m_Size(size), m_Empty(m_Size*m_Size), m_HexBoard(size*size + 4),
 	m_Left(size*size), m_Right(size*size + 1), m_Top(size*size + 2), m_Bottom(size*size + 3)
 {
 	srand(time(NULL));
 
 	m_Player1 = new HumanPlayer(RED);
-	m_Player2 = new AlphaBetaPlayer(BLUE);
+	m_Player2 = new MonteCarloPlayer(BLUE);
 	m_NextPlayer = 1;
 	//  line 1 
 	m_HexBoard.AddEdge(0, 1);
@@ -391,7 +554,7 @@ Hex::Hex(const Hex &hex) : m_Size(hex.m_Size), m_Empty(hex.m_Empty), m_HexBoard(
 	m_Left(hex.m_Left), m_Right(hex.m_Right), m_Top(hex.m_Top), m_Bottom(hex.m_Bottom), m_NextPlayer(hex.m_NextPlayer)
 {
 	m_Player1 = new HumanPlayer(hex.m_Player1->GetColor());
-	m_Player2 = new AlphaBetaPlayer(hex.m_Player2->GetColor());
+	m_Player2 = new MonteCarloPlayer(hex.m_Player2->GetColor());
 }
 
 Hex::Hex(Hex &&hex) : m_Size(hex.m_Size), m_Empty(hex.m_Empty), m_HexBoard(move(hex.m_HexBoard)),
@@ -457,6 +620,14 @@ PlayerColor Hex::GetVertexColor(const coordinates &coord) const
 	return m_HexBoard.GetVertexColor(vertexIndex);
 }
 
+PlayerColor Hex::GetNextPlayerColor() const
+{
+	if (m_NextPlayer)
+		return m_Player1->GetColor();
+	else
+		return m_Player2->GetColor();
+}
+
 PlayerColor Hex::GetWinner()
 {
 	//  BLUE wins if two his virtual vertices are connected (left and right)
@@ -489,6 +660,23 @@ PlayerColor Hex::MakeTurn()
 	return GetWinner();
 }
 
+PlayerColor Hex::MakeTurnInSimulation()
+{
+	IPlayer *currentPlayer;
+
+	if (m_NextPlayer == 1)
+		currentPlayer = m_Player1;
+	else
+		currentPlayer = m_Player2;
+
+	while (!currentPlayer->TryTurn(*this))
+		continue;
+
+	m_NextPlayer = !m_NextPlayer;  //  easy way to change player
+
+	return GetWinner();
+}
+
 PlayerColor Hex::Play()
 {
 	PlayerColor winner;
@@ -499,6 +687,23 @@ PlayerColor Hex::Play()
 	} while (winner == NONE);
 
 	cout << *this;
+
+	return winner;
+}
+
+PlayerColor Hex::RandomSimulation()
+{
+	PlayerColor winner;
+
+	delete m_Player1;
+	delete m_Player2;
+	m_Player1 = new RandomStrategyPlayer(RED);
+	m_Player2 = new RandomStrategyPlayer(BLUE);
+
+	do
+	{
+		winner = MakeTurnInSimulation();
+	} while (winner == NONE);
 
 	return winner;
 }

@@ -49,19 +49,20 @@ public:
 	bool TryTurn(Hex &hexBoard);
 };
 
-class IMinMaxPlayer : public IPlayer
+class IPredictingPlayer : public IPlayer
 {
 protected:
+	PlayerColor InverseColor();
 	virtual int Evaluate(Hex &hexBoard);
 	void GetPossibleFields(const Hex &hexBoard, vector<Hex> &boards, vector<coordinates> &coords);
 public:
-	IMinMaxPlayer(PlayerColor playerColor);
-	virtual ~IMinMaxPlayer();
+	IPredictingPlayer(PlayerColor playerColor);
+	virtual ~IPredictingPlayer();
 
 	virtual bool TryTurn(Hex& hexBoard) = 0;
 };
 
-class MinMaxPlayer : public IMinMaxPlayer
+class MinMaxPlayer : public IPredictingPlayer
 {
 private:
 	turn Min(Hex &hexBoard, const coordinates& coord, unsigned int level);
@@ -73,7 +74,7 @@ public:
 	bool TryTurn(Hex& hexBoard);
 };
 
-class AlphaBetaPlayer : public IMinMaxPlayer
+class AlphaBetaPlayer : public IPredictingPlayer
 {
 private:
 	turn Min(Hex &hexBoard, const coordinates& coord, int alpha, int beta, unsigned int level);
@@ -81,6 +82,35 @@ private:
 public:
 	AlphaBetaPlayer(PlayerColor playerColor);
 	virtual ~AlphaBetaPlayer();
+
+	bool TryTurn(Hex& hexBoard);
+};
+
+class MonteCarloAlphaBetaPlayer : public IPredictingPlayer
+{
+private:
+	unsigned int m_InitialLevel;
+	unsigned int m_Simulations;
+
+	int Evaluate(Hex &hexBoard);
+	turn Min(Hex &hexBoard, const coordinates& coord, int alpha, int beta, unsigned int level);
+	turn Max(Hex &hexBoard, const coordinates& coord, int alpha, int beta, unsigned int level);
+public:
+	MonteCarloAlphaBetaPlayer(PlayerColor playerColor);
+	virtual ~MonteCarloAlphaBetaPlayer();
+
+	bool TryTurn(Hex& hexBoard);
+};
+
+class MonteCarloPlayer : public IPredictingPlayer
+{
+private:
+	unsigned int m_Simulations;
+
+	int Evaluate(Hex &hexBoard);
+public:
+	MonteCarloPlayer(PlayerColor playerColor);
+	virtual ~MonteCarloPlayer();
 
 	bool TryTurn(Hex& hexBoard);
 };
@@ -111,11 +141,15 @@ private:
 	PlayerColor GetVertexColor(const coordinates &coord) const;
 	bool SetVertexColor(const coordinates &coord, PlayerColor playerColor);
 
+	PlayerColor GetNextPlayerColor() const;
+
 	//  Returns the color of the winner if there is one. Otherwise returns NONE (form PlayerColor enum)
 	PlayerColor GetWinner();
 
 	//  Make a turn in the hex game
 	PlayerColor MakeTurn();
+
+	PlayerColor MakeTurnInSimulation();
 public:
 	//  Construct a hex board of given size
 	explicit Hex(unsigned int size);
@@ -124,15 +158,18 @@ public:
 	~Hex();
 
 	PlayerColor Play();
+	PlayerColor RandomSimulation();
 
 	//  Outputs the hex board
 	friend ostream &operator<< (ostream &os, const Hex &hexGame);
 
 	friend HumanPlayer;
 	friend RandomStrategyPlayer;
-	friend IMinMaxPlayer;
+	friend IPredictingPlayer;
 	friend MinMaxPlayer;
 	friend AlphaBetaPlayer;
+	friend MonteCarloAlphaBetaPlayer;
+	friend MonteCarloPlayer;
 };
 
 #endif
